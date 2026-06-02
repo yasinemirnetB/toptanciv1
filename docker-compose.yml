@@ -1,0 +1,67 @@
+services:
+  postgres-db:
+    image: postgres:16-alpine
+    container_name: kafe_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kafe_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kafe_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-kafe_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - kafe_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kafe_user} -d ${POSTGRES_DB:-kafe_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kafe_backend
+    restart: unless-stopped
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kafe_user}:${POSTGRES_PASSWORD:-kafe_pass}@postgres-db:5432/${POSTGRES_DB:-kafe_db}
+      JWT_SECRET: ${JWT_SECRET:-supersecretjwt}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/prisma:/app/prisma
+    networks:
+      - kafe_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kafe_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      BACKEND_URL: http://backend:3001
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+    networks:
+      - kafe_network
+
+volumes:
+  postgres_data:
+
+networks:
+  kafe_network:
+    driver: bridge

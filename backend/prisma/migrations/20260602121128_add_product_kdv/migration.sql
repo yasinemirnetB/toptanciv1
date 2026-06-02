@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Product" ADD COLUMN     "kdvRate" INTEGER NOT NULL DEFAULT 18;

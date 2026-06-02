@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #c8773a;
+  --color-primary-dark: #b5632a;
+  --color-bg: #f9fafb;
+  --color-brand-50: #fdf6ee;
+  --color-brand-100: #fae9d3;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-bg);
+    @apply text-gray-900;
+  }
+}

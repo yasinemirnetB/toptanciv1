@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  B2B
+  B2C
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  phone        String?
+  role         Role     @default(B2C)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  isActive     Boolean  @default(true)
+  segment      String?
+  locationId   String?
+  location     Location?    @relation(fields: [locationId], references: [id])
+  cafeAccount  CafeAccount?
+  orders       Order[]     @relation("OrderCreator")
+  customerOrders Order[]   @relation("OrderCustomer")
+  routes       Route[]
+
+  assignedStaffId  String?
+  assignedStaff    User?   @relation("StaffCustomers", fields: [assignedStaffId], references: [id])
+  assignedCustomers User[] @relation("StaffCustomers")
+}
+
+model CafeAccount {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  companyName String
+  taxNumber   String   @unique
+  taxOffice   String
+  address     String
+  balance     Float    @default(0)
+  creditLimit Float    @default(10000)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  transactions AccountTransaction[]
+}
+
+model AccountTransaction {
+  id            String      @id @default(cuid())
+  cafeAccountId String
+  cafeAccount   CafeAccount @relation(fields: [cafeAccountId], references: [id])
+  amount        Float
+  type          String      // DEBIT | CREDIT
+  description   String
+  orderId       String?
+  createdAt     DateTime    @default(now())
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model Product {
+  id           String      @id @default(cuid())
+  name         String
+  slug         String      @unique
+  description  String?
+  imageUrl     String?
+  b2cPrice     Float
+  b2bPrice     Float
+  stock        Int         @default(0)
+  unit         String      @default("adet")
+  brand        String?
+  kdvRate      Int         @default(18)
+  discountPct  Int         @default(0)
+  isActive     Boolean     @default(true)
+  categoryId   String
+  category     Category    @relation(fields: [categoryId], references: [id])
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  orderItems   OrderItem[]
+  routeSales   RouteSale[]
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  userId       String?
+  user         User?       @relation("OrderCreator", fields: [userId], references: [id])
+  customerId   String?
+  customer     User?       @relation("OrderCustomer", fields: [customerId], references: [id])
+  guestName    String?
+  guestEmail   String?
+  guestPhone   String?
+  status       OrderStatus @default(PENDING)
+  totalAmount  Float
+  paymentType  String      // ONLINE | CARI | KAPIDA
+  shippingAddr String
+  trackingCode String?
+  notes        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  items        OrderItem[]
+  invoice      Invoice?
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Float
+}
+
+model Invoice {
+  id            String   @id @default(cuid())
+  orderId       String   @unique
+  order         Order    @relation(fields: [orderId], references: [id])
+  invoiceNumber String   @unique
+  externalId    String?
+  pdfUrl        String?
+  issuedAt      DateTime @default(now())
+  createdAt     DateTime @default(now())
+}
+
+model Location {
+  id        String      @id @default(cuid())
+  name      String
+  address   String
+  phone     String?
+  note      String?
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  routeItems RouteItem[]
+  users      User[]
+}
+
+model Route {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  date      DateTime    @db.Date
+  note      String?
+  createdAt DateTime    @default(now())
+
+  items     RouteItem[]
+}
+
+model RouteItem {
+  id         String     @id @default(cuid())
+  routeId    String
+  route      Route      @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  locationId String
+  location   Location   @relation(fields: [locationId], references: [id])
+  order      Int
+  visited    Boolean    @default(false)
+  visitedAt  DateTime?
+  notes      String?
+
+  sales      RouteSale[]
+}
+
+model RouteSale {
+  id          String    @id @default(cuid())
+  routeItemId String
+  routeItem   RouteItem @relation(fields: [routeItemId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  quantity    Int
+  unitPrice   Float
+  createdAt   DateTime  @default(now())
+}
