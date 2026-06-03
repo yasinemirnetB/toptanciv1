@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { usePermission } from '@/hooks/usePermission';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -14,6 +15,7 @@ const ROLE_LABELS: Record<string, { label: string; style: string }> = {
 };
 
 export default function AdminMusteriler() {
+  usePermission('musteri');
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
@@ -32,6 +34,7 @@ export default function AdminMusteriler() {
   const [addForm, setAddForm] = useState({
     name: '', email: '', phone: '', password: '', role: 'B2C',
     companyName: '', taxNumber: '', taxOffice: '', companyAddress: '',
+    segment: '', locationId: '',
   });
   const [showAddPass, setShowAddPass] = useState(false);
 
@@ -59,7 +62,6 @@ export default function AdminMusteriler() {
 
   const addCustomerMutation = useMutation({
     mutationFn: async (data: any) => {
-      // Önce kullanıcıyı kaydet (register endpoint'i kullan)
       const res = await api.post('/auth/register', {
         name: data.name,
         email: data.email,
@@ -73,13 +75,20 @@ export default function AdminMusteriler() {
           address: data.companyAddress,
         }),
       });
+      // Segment ve locationId varsa güncelle
+      if (res.data?.user?.id && (data.segment || data.locationId)) {
+        await api.patch(`/users/${res.data.user.id}`, {
+          segment: data.segment || null,
+          locationId: data.locationId || null,
+        });
+      }
       return res;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-users'] });
       toast.success('Müşteri eklendi');
       setShowAddCustomer(false);
-      setAddForm({ name: '', email: '', phone: '', password: '', role: 'B2C', companyName: '', taxNumber: '', taxOffice: '', companyAddress: '' });
+      setAddForm({ name: '', email: '', phone: '', password: '', role: 'B2C', companyName: '', taxNumber: '', taxOffice: '', companyAddress: '', segment: '', locationId: '' });
     },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Müşteri eklenemedi'),
   });
@@ -200,7 +209,7 @@ export default function AdminMusteriler() {
                 <InfoRow label="E-posta" value={selected.email} />
                 <InfoRow label="Telefon" value={selected.phone || '—'} />
                 <InfoRow label="Kayıt Tarihi" value={new Date(selected.createdAt).toLocaleDateString('tr-TR')} />
-                <InfoRow label="Toplam Sipariş" value={`${selected._count?.orders ?? 0} sipariş`} />
+                <InfoRow label="Toplam Sipariş" value={`${selected._count?.customerOrders ?? 0} sipariş`} />
               </div>
               {selected.cafeAccount && (
                 <>
@@ -525,6 +534,32 @@ export default function AdminMusteriler() {
                   </div>
                 </div>
               )}
+
+              {/* Segment ve Konum — tüm müşteriler için */}
+              <div className="space-y-3 pt-2 border-t">
+                <p className="text-xs font-semibold text-gray-500 pt-1">Segment & Konum</p>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Müşteri Segmenti</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['', ...(settings.customerSegments ?? [])].map((s) => (
+                      <button key={s} type="button" onClick={() => setAddForm((f) => ({ ...f, segment: s }))}
+                        className={`px-3 py-1 rounded-full text-xs font-medium border transition ${addForm.segment === s ? (s ? 'bg-brand-600 text-white border-brand-600' : 'bg-gray-800 text-white border-gray-800') : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`}>
+                        {s || 'Yok'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ziyaret Konumu</label>
+                  <select value={addForm.locationId} onChange={(e) => setAddForm((f) => ({ ...f, locationId: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    <option value="">— Konum seçilmemiş —</option>
+                    {locations?.map((l: any) => (
+                      <option key={l.id} value={l.id}>{l.name}{l.address ? ` · ${l.address}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
             <div className="px-6 pb-6 flex gap-3 sticky bottom-0 bg-white border-t pt-4">
               <button onClick={() => setShowAddCustomer(false)} className="flex-1 border rounded-xl py-2 text-sm text-gray-600 hover:bg-gray-50">İptal</button>
@@ -584,8 +619,18 @@ export default function AdminMusteriler() {
                   {u.cafeAccount?.companyName && <p className="text-xs text-gray-600">🏢 {u.cafeAccount.companyName}</p>}
                   {u.location && <p className="text-xs text-gray-500">📍 {u.location.name}</p>}
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400">{u._count?.orders ?? 0} sipariş · {new Date(u.createdAt).toLocaleDateString('tr-TR')}</span>
+                    <span className="text-xs text-gray-400">{u._count?.customerOrders ?? 0} sipariş · {new Date(u.createdAt).toLocaleDateString('tr-TR')}</span>
                     <div className="flex gap-1.5">
+                      {u.location?.address && (
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(u.location.address)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs bg-green-50 text-green-700 px-2.5 py-1 rounded-lg font-medium"
+                        >
+                          🧭 Yol
+                        </a>
+                      )}
                       <button onClick={() => setSelected(u)} className="text-xs bg-brand-50 text-brand-700 px-2.5 py-1 rounded-lg font-medium">Detay</button>
                       <button onClick={() => openEdit(u)} className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-medium">Düzenle</button>
                       <button onClick={() => setDeleteConfirm(u)} className="text-xs bg-red-50 text-red-600 px-2.5 py-1 rounded-lg font-medium">Sil</button>
@@ -608,9 +653,9 @@ export default function AdminMusteriler() {
                       <td className="px-4 py-3">{u.location ? <div><p className="text-xs font-medium text-gray-700">📍{u.location.name}</p><p className="text-xs text-gray-400 truncate max-w-[140px]">{u.location.address}</p></div> : <span className="text-xs text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-gray-600">{u.cafeAccount?.companyName ?? '—'}</td>
                       <td className="px-4 py-3 font-mono text-xs text-gray-500">{u.cafeAccount?.taxNumber ?? '—'}</td>
-                      <td className="px-4 py-3 text-center">{u._count?.orders ?? 0}</td>
+                      <td className="px-4 py-3 text-center">{u._count?.customerOrders ?? 0}</td>
                       <td className="px-4 py-3 text-gray-400 text-xs">{new Date(u.createdAt).toLocaleDateString('tr-TR')}</td>
-                      <td className="px-4 py-3"><div className="flex gap-2"><button onClick={() => setSelected(u)} className="text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 px-3 py-1.5 rounded-lg font-medium transition">Detay</button><button onClick={() => openEdit(u)} className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition">Düzenle</button><button onClick={() => setDeleteConfirm(u)} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg font-medium transition">Sil</button></div></td>
+                      <td className="px-4 py-3"><div className="flex gap-2">{u.location?.address && (<a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(u.location.address)}`} target="_blank" rel="noreferrer" className="text-xs bg-green-50 text-green-700 hover:bg-green-100 px-3 py-1.5 rounded-lg font-medium transition">🧭 Yol</a>)}<button onClick={() => setSelected(u)} className="text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 px-3 py-1.5 rounded-lg font-medium transition">Detay</button><button onClick={() => openEdit(u)} className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition">Düzenle</button><button onClick={() => setDeleteConfirm(u)} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg font-medium transition">Sil</button></div></td>
                     </tr>
                   ))}
                 </tbody>

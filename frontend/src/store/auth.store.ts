@@ -6,6 +6,7 @@ interface User {
   email: string;
   name: string;
   role: 'ADMIN' | 'STAFF' | 'B2B' | 'B2C';
+  permissions?: string[];
 }
 
 interface AuthStore {

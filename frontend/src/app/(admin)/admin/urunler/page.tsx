@@ -1,6 +1,8 @@
 'use client';
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { usePermission } from '@/hooks/usePermission';
+import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -22,7 +24,10 @@ function slugify(s: string) {
 }
 
 export default function AdminProducts() {
+  usePermission('urun_ekle', 'urunler');
   const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const canEdit = user?.role === 'ADMIN' || (user?.permissions ?? []).includes('urun_ekle');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<ProductForm>(EMPTY);
@@ -202,14 +207,16 @@ export default function AdminProducts() {
 
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Ürünler</h1>
-        <button onClick={() => { resetForm(); setShowForm((v) => !v); }}
-          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition">
-          {showForm && !editing ? 'İptal' : '+ Yeni Ürün'}
-        </button>
+        {canEdit && (
+          <button onClick={() => { resetForm(); setShowForm((v) => !v); }}
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition">
+            {showForm && !editing ? 'İptal' : '+ Yeni Ürün'}
+          </button>
+        )}
       </div>
 
-      {/* Form */}
-      {showForm && (
+      {/* Form — sadece yetkili */}
+      {showForm && canEdit && (
         <div className="bg-white rounded-xl shadow-sm p-6 mb-5 border-l-4 border-brand-500">
           <h2 className="text-base font-semibold mb-4">{editing ? `Düzenle: ${editing.name}` : 'Yeni Ürün Ekle'}</h2>
           <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
@@ -477,20 +484,24 @@ export default function AdminProducts() {
           <option value="ALL">Tüm Kategoriler</option>
           {categories?.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <button
-          onClick={() => setShowCatModal(true)}
-          className="flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition whitespace-nowrap"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-          Kategori
-        </button>
-        <button
-          onClick={() => setShowBulkModal(true)}
-          className="flex items-center gap-1.5 px-3 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 transition whitespace-nowrap"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7"/></svg>
-          Toplu İşlem
-        </button>
+        {canEdit && (
+          <>
+            <button
+              onClick={() => setShowCatModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition whitespace-nowrap"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+              Kategori
+            </button>
+            <button
+              onClick={() => setShowBulkModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 transition whitespace-nowrap"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7"/></svg>
+              Toplu İşlem
+            </button>
+          </>
+        )}
       </div>
 
       {/* Tablo */}
@@ -521,10 +532,12 @@ export default function AdminProducts() {
                       {p.discountPct > 0 && <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">%{p.discountPct} indirim</span>}
                     </div>
                   </div>
-                  <div className="flex gap-1.5">
-                    <button onClick={() => openEdit(p)} className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-lg font-medium flex-1">Düzenle</button>
-                    <button onClick={() => setDeleteConfirm(p)} className="text-xs bg-red-50 text-red-600 px-3 py-1 rounded-lg font-medium flex-1">Sil</button>
-                  </div>
+                  {canEdit && (
+                    <div className="flex gap-1.5">
+                      <button onClick={() => openEdit(p)} className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-lg font-medium flex-1">Düzenle</button>
+                      <button onClick={() => setDeleteConfirm(p)} className="text-xs bg-red-50 text-red-600 px-3 py-1 rounded-lg font-medium flex-1">Sil</button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -545,7 +558,7 @@ export default function AdminProducts() {
                       <td className="px-4 py-3 font-semibold">{p.stock}</td>
                       <td className="px-4 py-3 text-gray-500">{p.unit}</td>
                       <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${p.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{p.isActive ? 'Aktif' : 'Pasif'}</span></td>
-                      <td className="px-4 py-3"><div className="flex gap-2"><button onClick={() => openEdit(p)} className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition">Düzenle</button><button onClick={() => setDeleteConfirm(p)} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg font-medium transition">Sil</button></div></td>
+                      <td className="px-4 py-3">{canEdit ? <div className="flex gap-2"><button onClick={() => openEdit(p)} className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition">Düzenle</button><button onClick={() => setDeleteConfirm(p)} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg font-medium transition">Sil</button></div> : <span className="text-xs text-gray-300">—</span>}</td>
                     </tr>
                   ))}
                 </tbody>

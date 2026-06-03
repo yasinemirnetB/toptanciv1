@@ -1,8 +1,14 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useSettingsStore } from '@/store/settings.store';
 
 export default function IletisimPage() {
+  const settings = useSettingsStore((s) => s.settings);
+  const router = useRouter();
+  useEffect(() => { if (settings.pages?.iletisim === false) router.replace('/'); }, [settings.pages?.iletisim]);
+
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
   const [loading, setLoading] = useState(false);
 

@@ -9,6 +9,7 @@ import { FinanceModule } from './finance/finance.module';
 import { LocationsModule } from './locations/locations.module';
 import { RoutesModule } from './routes/routes.module';
 import { UploadModule } from './upload/upload.module';
+import { VisitLogsModule } from './visit-logs/visit-logs.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { UploadModule } from './upload/upload.module';
     LocationsModule,
     RoutesModule,
     UploadModule,
+    VisitLogsModule,
   ],
 })
 export class AppModule {}

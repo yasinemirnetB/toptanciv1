@@ -8,7 +8,7 @@ export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   async findByEmail(email: string) {
-    return this.prisma.user.findUnique({ where: { email }, select: { id: true, email: true, name: true, role: true, passwordHash: true, isActive: true } });
+    return this.prisma.user.findUnique({ where: { email }, select: { id: true, email: true, name: true, role: true, passwordHash: true, isActive: true, permissions: true } });
   }
 
   async findById(id: string) {
@@ -37,7 +37,7 @@ export class UsersService {
   async findAll() {
     return this.prisma.user.findMany({
       select: {
-        id: true, email: true, name: true, phone: true, role: true, isActive: true, segment: true, createdAt: true, locationId: true,
+        id: true, email: true, name: true, phone: true, role: true, isActive: true, permissions: true, segment: true, createdAt: true, locationId: true,
         location: { select: { id: true, name: true, address: true, phone: true, note: true } },
         cafeAccount: {
           select: {
@@ -46,7 +46,7 @@ export class UsersService {
           },
         },
         assignedStaff: { select: { id: true, name: true } },
-        _count: { select: { orders: true } },
+        _count: { select: { customerOrders: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -72,7 +72,7 @@ export class UsersService {
     });
   }
 
-  async updateUser(id: string, data: { name?: string; email?: string; phone?: string; role?: string; locationId?: string | null; segment?: string | null }) {
+  async updateUser(id: string, data: { name?: string; email?: string; phone?: string; role?: string; locationId?: string | null; segment?: string | null; permissions?: string[] }) {
     return this.prisma.user.update({
       where: { id },
       data: {
@@ -82,8 +82,9 @@ export class UsersService {
         ...(data.role && { role: data.role as Role }),
         ...(data.locationId !== undefined && { locationId: data.locationId || null }),
         ...(data.segment !== undefined && { segment: data.segment || null }),
+        ...(data.permissions !== undefined && { permissions: data.permissions }),
       },
-      select: { id: true, email: true, name: true, phone: true, role: true, locationId: true },
+      select: { id: true, email: true, name: true, phone: true, role: true, locationId: true, permissions: true },
     });
   }
 

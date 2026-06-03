@@ -1,9 +1,22 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { usePermission } from '@/hooks/usePermission';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/auth.store';
+
+// Haversine formülü — iki koordinat arası mesafe (metre)
+function getDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const VISIT_RADIUS = 300;  // 300 metre — ziyaret başlatma mesafesi
+const LEAVE_RADIUS = 500;  // 500 metre — ziyaret bitirme mesafesi
 
 const ROLE_LABELS: Record<string, { label: string; style: string }> = {
   B2B: { label: 'Toptan', style: 'bg-blue-100 text-blue-700' },
@@ -16,6 +29,7 @@ const EMPTY_ADD_FORM = {
 };
 
 export default function RotamPage() {
+  usePermission('rota');
   const qc = useQueryClient();
   const { isAdmin } = useAuthStore();
   const [showAddCustomer, setShowAddCustomer] = useState(false);
@@ -26,6 +40,45 @@ export default function RotamPage() {
   const [paymentModal, setPaymentModal] = useState<any>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'Nakit' | 'Kredi Kartı'>('Nakit');
+
+  // Geolocation
+  const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [visitingId, setVisitingId] = useState<string | null>(null); // aktif ziyaret
+  const [visitNote, setVisitNote] = useState('');
+  const [showVisitEnd, setShowVisitEnd] = useState<any>(null); // ziyareti bitir modal
+  const watchRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    watchRef.current = navigator.geolocation.watchPosition(
+      (pos) => setMyPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 10000 }
+    );
+    return () => { if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current); };
+  }, []);
+
+  function distanceTo(customer: any): number | null {
+    if (!myPos || !customer.location?.lat || !customer.location?.lng) return null;
+    return getDistance(myPos.lat, myPos.lng, customer.location.lat, customer.location.lng);
+  }
+
+  function startVisit(customer: any) {
+    setVisitingId(customer.id);
+    toast.success(`${customer.name} ziyareti başladı`);
+  }
+
+  function endVisit(customer: any) {
+    setShowVisitEnd(customer);
+  }
+
+  async function confirmEndVisit() {
+    if (!showVisitEnd) return;
+    setVisitingId(null);
+    setShowVisitEnd(null);
+    setVisitNote('');
+    toast.success(`${showVisitEnd.name} ziyareti tamamlandı`);
+  }
 
   const paymentMutation = useMutation({
     mutationFn: ({ userId, amount }: { userId: string; amount: number }) =>
@@ -44,6 +97,33 @@ export default function RotamPage() {
     queryKey: ['my-customers'],
     queryFn: () => api.get('/users/my-customers').then((r) => r.data),
   });
+
+  const { data: staffOrders = [] } = useQuery({
+    queryKey: ['staff-orders'],
+    queryFn: () => api.get('/orders/staff').then((r) => r.data),
+  });
+
+  function daysSinceLastOrder(customerId: string): number | null {
+    const customerOrders = staffOrders.filter((o: any) => o.customerId === customerId || o.customer?.id === customerId);
+    if (customerOrders.length === 0) return null;
+    const latest = customerOrders.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+    return Math.floor((Date.now() - new Date(latest.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  async function handleSatisClick(c: any) {
+    try {
+      await api.post('/visit-logs', {
+        customerId: c.id,
+        action: 'VISIT_START',
+        locationId: c.locationId ?? undefined,
+        lat: myPos?.lat,
+        lng: myPos?.lng,
+      });
+    } catch (e) {
+      // log but don't block navigation
+    }
+    window.location.href = `/admin/hizli-satis?customerId=${c.id}`;
+  }
 
   const addCustomerMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -169,17 +249,38 @@ export default function RotamPage() {
                 <div>
                   <p className="text-xs text-gray-400">Konum</p>
                   <p className="font-medium">{selected.location.name}</p>
-                  <p className="text-xs text-gray-500">{selected.location.address}</p>
-                  {selected.location.lat && selected.location.lng && (
-                    <a
-                      href={`https://www.google.com/maps?q=${selected.location.lat},${selected.location.lng}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      Haritada Gör →
-                    </a>
-                  )}
+                  {selected.location.address && <p className="text-xs text-gray-500 mt-0.5">{selected.location.address}</p>}
+                  <div className="flex gap-2 mt-2">
+                    {selected.location.lat && selected.location.lng ? (
+                      <>
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${selected.location.lat},${selected.location.lng}`}
+                          target="_blank" rel="noreferrer"
+                          className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1.5 rounded-lg font-medium hover:bg-blue-700 transition"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+                          Yol Tarifi
+                        </a>
+                        <a
+                          href={`https://www.google.com/maps?q=${selected.location.lat},${selected.location.lng}`}
+                          target="_blank" rel="noreferrer"
+                          className="flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2.5 py-1.5 rounded-lg font-medium hover:bg-gray-200 transition"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+                          Haritada Gör
+                        </a>
+                      </>
+                    ) : selected.location.address ? (
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selected.location.address)}`}
+                        target="_blank" rel="noreferrer"
+                        className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-lg font-medium hover:bg-blue-100 transition"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+                        Haritada Ara
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
               )}
               {selected.cafeAccount && (
@@ -292,8 +393,8 @@ export default function RotamPage() {
       {/* Başlık */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Rotam</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Size atanmış müşteriler</p>
+          <h1 className="text-2xl font-bold">Müşterilerim</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Atanmış müşteriler ve sipariş durumları</p>
         </div>
         <button
           onClick={() => setShowAddCustomer(true)}
@@ -345,6 +446,12 @@ export default function RotamPage() {
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_LABELS[c.role]?.style}`}>
                       {ROLE_LABELS[c.role]?.label}
                     </span>
+                    {(() => {
+                      const days = daysSinceLastOrder(c.id);
+                      if (days === null) return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">⚠️ Hiç sipariş yok</span>;
+                      if (days >= 15) return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">⚠️ {days} gündür sipariş yok</span>;
+                      return null;
+                    })()}
                   </div>
                   <p className="text-xs text-gray-400">{c.email}</p>
                   {c.phone && <p className="text-xs text-gray-500">{c.phone}</p>}
@@ -352,7 +459,9 @@ export default function RotamPage() {
                     <p className="text-xs text-gray-500 mt-0.5">🏢 {c.cafeAccount.companyName}</p>
                   )}
                   {c.location && (
-                    <p className="text-xs text-gray-400 mt-0.5">📍 {c.location.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">📍 {c.location.name}
+                      {c.location.address && <span className="text-gray-300"> · {c.location.address.slice(0, 30)}{c.location.address.length > 30 ? '…' : ''}</span>}
+                    </p>
                   )}
                 </div>
                 <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
@@ -361,16 +470,30 @@ export default function RotamPage() {
                       Ara
                     </a>
                   )}
-                  {c.location?.address && (
+                  {/* Konum butonu — koordinat varsa navigasyon, yoksa arama */}
+                  {(c.location?.lat && c.location?.lng) ? (
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${c.location.lat},${c.location.lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={c.location.address || c.location.name}
+                      className="flex items-center gap-1.5 text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded-lg font-medium transition shadow-sm"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+                      Yol Tarifi
+                    </a>
+                  ) : c.location?.address ? (
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.location.address)}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition"
+                      title={c.location.address}
+                      className="flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition"
                     >
-                      🗺️ Yol
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+                      Haritada Gör
                     </a>
-                  )}
+                  ) : null}
                   {c.cafeAccount?.balance > 0 && (
                     <button
                       onClick={() => { setPaymentModal(c); setPaymentAmount(''); }}
@@ -379,15 +502,113 @@ export default function RotamPage() {
                       💰 Ödeme Al
                     </button>
                   )}
+
+                  {/* Ziyaret butonları — konum izlemeye göre */}
+                  {(() => {
+                    const dist = distanceTo(c);
+                    const isVisiting = visitingId === c.id;
+                    const isNear = dist !== null && dist <= VISIT_RADIUS;
+                    const isStillHere = dist !== null && dist <= LEAVE_RADIUS;
+
+                    if (isVisiting) {
+                      return (
+                        <button
+                          onClick={() => endVisit(c)}
+                          className="flex items-center gap-1.5 text-xs bg-red-600 text-white hover:bg-red-700 px-3 py-1.5 rounded-lg font-semibold transition animate-pulse"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                          Ziyareti Bitir
+                        </button>
+                      );
+                    }
+                    if (isNear && !visitingId) {
+                      return (
+                        <button
+                          onClick={() => startVisit(c)}
+                          className="flex items-center gap-1.5 text-xs bg-emerald-600 text-white hover:bg-emerald-700 px-3 py-1.5 rounded-lg font-semibold transition"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                          Ziyarete Başla
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
+
                   <button onClick={() => setSelected(c)} className="text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 px-3 py-1.5 rounded-lg font-medium transition">
                     Detay
                   </button>
-                  <a href={`/admin/hizli-satis?customerId=${c.id}`} className="text-xs bg-orange-50 text-orange-700 hover:bg-orange-100 px-3 py-1.5 rounded-lg font-medium transition">
-                    Satış
-                  </a>
+                  {(() => {
+                    const dist = distanceTo(c);
+                    const hasCoords = !!(c.location?.lat && c.location?.lng);
+                    const gpsAvail = myPos !== null;
+                    const withinRadius = dist !== null && dist <= VISIT_RADIUS;
+                    if (hasCoords && gpsAvail && !withinRadius) {
+                      return (
+                        <button
+                          disabled
+                          title="Konuma git"
+                          className="text-xs bg-gray-100 text-gray-400 px-3 py-1.5 rounded-lg font-medium cursor-not-allowed"
+                        >
+                          Satış
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        onClick={() => handleSatisClick(c)}
+                        className="text-xs bg-orange-50 text-orange-700 hover:bg-orange-100 px-3 py-1.5 rounded-lg font-medium transition"
+                      >
+                        Satış
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      {/* Ziyareti Bitir Modal */}
+      {showVisitEnd && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="p-5 border-b">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900">Ziyareti Tamamla</p>
+                  <p className="text-xs text-gray-400">{showVisitEnd.name}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Ziyaret Notu (isteğe bağlı)</label>
+                <textarea
+                  value={visitNote}
+                  onChange={(e) => setVisitNote(e.target.value)}
+                  rows={3}
+                  placeholder="Görüşme özeti, sipariş notu..."
+                  className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                />
+              </div>
+              <a
+                href={`/admin/hizli-satis?customerId=${showVisitEnd.id}`}
+                className="flex items-center justify-center gap-2 w-full bg-orange-50 text-orange-700 hover:bg-orange-100 py-2.5 rounded-xl text-sm font-medium transition"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                Hızlı Satış Yap
+              </a>
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button onClick={() => { setShowVisitEnd(null); }} className="flex-1 border rounded-xl py-2.5 text-sm text-gray-600 hover:bg-gray-50">İptal</button>
+              <button onClick={confirmEndVisit} className="flex-1 bg-emerald-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-emerald-700">
+                ✓ Ziyareti Bitir
+              </button>
+            </div>
           </div>
         </div>
       )}

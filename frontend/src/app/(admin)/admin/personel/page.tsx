@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { usePermission } from '@/hooks/usePermission';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 
@@ -16,6 +17,7 @@ const STAFF_ROLES = ['ADMIN', 'STAFF'];
 const EMPTY_FORM = { name: '', email: '', phone: '', password: '', role: 'STAFF' };
 
 export default function PersonelPage() {
+  usePermission('personel');
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -107,22 +109,40 @@ export default function PersonelPage() {
     const staffId = assignModal.id;
 
     const promises: Promise<any>[] = [];
-
     for (const customer of customers) {
       const wasAssigned = customer.assignedStaff?.id === staffId;
       const isNowAssigned = assignedIds.has(customer.id);
-
-      if (!wasAssigned && isNowAssigned) {
+      if (!wasAssigned && isNowAssigned)
         promises.push(api.patch(`/users/${customer.id}/assign-staff`, { staffId }));
-      } else if (wasAssigned && !isNowAssigned) {
+      else if (wasAssigned && !isNowAssigned)
         promises.push(api.patch(`/users/${customer.id}/assign-staff`, { staffId: null }));
-      }
     }
 
     try {
       await Promise.all(promises);
+
+      // Atanan müşterilerin konumlarını personelin rotasına ekle
+      const assignedCustomers = customers.filter((c: any) => assignedIds.has(c.id));
+      const locationIds = assignedCustomers
+        .map((c: any) => c.locationId)
+        .filter(Boolean);
+
+      if (locationIds.length > 0) {
+        const today = new Date().toISOString().split('T')[0];
+        await api.post('/routes', {
+          userId: staffId,
+          date: today,
+          note: `${assignModal.name} müşteri rotası`,
+          locationIds,
+        });
+        toast.success(`Müşteri atamaları kaydedildi ve ${locationIds.length} konum rotaya eklendi`);
+      } else {
+        toast.success('Müşteri atamaları kaydedildi');
+        if (assignedCustomers.length > 0)
+          toast.info('Atanan müşterilerin konumu tanımlı değil, rotaya eklenemedi');
+      }
+
       qc.invalidateQueries({ queryKey: ['admin-users'] });
-      toast.success('Müşteri atamaları kaydedildi');
       setAssignModal(null);
     } catch {
       toast.error('Bir hata oluştu');
@@ -252,39 +272,61 @@ export default function PersonelPage() {
       {/* Müşteri Ata Modal */}
       {assignModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setAssignModal(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b flex-shrink-0">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b flex-shrink-0">
               <h2 className="text-lg font-bold">Müşteri Ata</h2>
-              <p className="text-sm text-gray-400 mt-0.5">{assignModal.name} için müşteri seçin</p>
+              <p className="text-sm text-gray-400 mt-0.5">
+                <span className="font-medium text-gray-700">{assignModal.name}</span> için müşteri seçin — seçilen müşterilerin konumları rotaya otomatik eklenir
+              </p>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
               {customers.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">Müşteri bulunamadı</p>
               ) : (
-                customers.map((customer: any) => (
-                  <label key={customer.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={assignedIds.has(customer.id)}
-                      onChange={() => toggleCustomer(customer.id)}
-                      className="w-4 h-4 rounded text-brand-600"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-800">{customer.name}</p>
-                      <p className="text-xs text-gray-400 truncate">{customer.email}</p>
-                    </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_LABELS[customer.role]?.style}`}>
-                      {ROLE_LABELS[customer.role]?.label}
-                    </span>
-                  </label>
-                ))
+                customers.map((customer: any) => {
+                  const checked = assignedIds.has(customer.id);
+                  const hasLocation = !!customer.locationId;
+                  return (
+                    <label key={customer.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${checked ? 'border-teal-500 bg-teal-50' : 'border-gray-100 hover:bg-gray-50'}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleCustomer(customer.id)}
+                        className="w-4 h-4 accent-teal-600 rounded flex-shrink-0"
+                      />
+                      <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                        {customer.name?.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-800">{customer.name}</p>
+                        <p className="text-xs text-gray-400 truncate">{customer.email}</p>
+                        {hasLocation ? (
+                          <p className="text-xs text-teal-600 mt-0.5">📍 {customer.location?.name || 'Konum var'}</p>
+                        ) : (
+                          <p className="text-xs text-orange-400 mt-0.5">⚠️ Konum tanımlı değil — rotaya eklenemez</p>
+                        )}
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${ROLE_LABELS[customer.role]?.style}`}>
+                        {ROLE_LABELS[customer.role]?.label}
+                      </span>
+                    </label>
+                  );
+                })
               )}
             </div>
-            <div className="p-4 border-t flex-shrink-0 flex gap-3">
-              <button onClick={() => setAssignModal(null)} className="flex-1 border rounded-lg py-2 text-sm text-gray-600 hover:bg-gray-50">İptal</button>
-              <button onClick={handleSaveAssignments} className="flex-1 bg-brand-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-brand-700">
-                Kaydet
-              </button>
+
+            <div className="px-5 py-4 border-t flex-shrink-0">
+              <p className="text-xs text-gray-400 mb-3">
+                {assignedIds.size} müşteri seçildi ·&nbsp;
+                {customers.filter((c: any) => assignedIds.has(c.id) && c.locationId).length} konumlu → rotaya eklenecek
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => setAssignModal(null)} className="flex-1 border rounded-xl py-2.5 text-sm text-gray-600 hover:bg-gray-50">İptal</button>
+                <button onClick={handleSaveAssignments} className="flex-1 bg-teal-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-teal-700">
+                  Kaydet ve Rotaya Ekle
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -296,15 +338,6 @@ export default function PersonelPage() {
           <h1 className="text-2xl font-bold">Personel</h1>
           <p className="text-sm text-gray-400 mt-0.5">Yönetim paneline erişimi olan kullanıcılar</p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-brand-600 text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-brand-700 transition"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Personel Ekle
-        </button>
       </div>
 
       {/* Arama & Filtre */}
@@ -351,13 +384,13 @@ export default function PersonelPage() {
                   {u.phone && <p className="text-xs text-gray-500">📞 {u.phone}</p>}
                   <div className="flex gap-1.5 flex-wrap">
                     {u.role === 'STAFF' && (
-                      <button onClick={() => openAssignModal(u)} className="text-xs bg-green-50 text-green-700 px-2.5 py-1 rounded-lg font-medium">Müşteri Ata</button>
+                      <button onClick={() => openAssignModal(u)} className="text-xs bg-teal-50 text-teal-700 px-2.5 py-1 rounded-lg font-medium">
+                        👥 Müşteri Ata
+                      </button>
                     )}
                     <button onClick={() => toggleActiveMutation.mutate(u.id)} disabled={toggleActiveMutation.isPending} className={`text-xs px-2.5 py-1 rounded-lg font-medium ${u.isActive !== false ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-700'}`}>
                       {u.isActive !== false ? 'Pasif Yap' : 'Aktif Yap'}
                     </button>
-                    <button onClick={() => { setEditing(u); setEditForm({ name: u.name, email: u.email, phone: u.phone || '', role: u.role }); }} className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-medium">Düzenle</button>
-                    <button onClick={() => setDeleteConfirm(u)} className="text-xs bg-red-50 text-red-600 px-2.5 py-1 rounded-lg font-medium">Sil</button>
                   </div>
                 </div>
               ))}
@@ -377,10 +410,16 @@ export default function PersonelPage() {
                       <td className="px-4 py-3 text-gray-500">{u.phone || '—'}</td>
                       <td className="px-4 py-3 text-gray-400 text-xs">{new Date(u.createdAt).toLocaleDateString('tr-TR')}</td>
                       <td className="px-4 py-3"><div className="flex gap-2 flex-wrap">
-                        {u.role === 'STAFF' && <button onClick={() => openAssignModal(u)} className="text-xs bg-green-50 text-green-700 hover:bg-green-100 px-3 py-1.5 rounded-lg font-medium transition">Müşteri Ata</button>}
+                        {u.role === 'STAFF' && (
+                          <button onClick={() => openAssignModal(u)} className="text-xs bg-teal-50 text-teal-700 hover:bg-teal-100 px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1">
+                            <span>👥</span> Müşteri Ata
+                            {(() => {
+                              const cnt = customers.filter((c: any) => c.assignedStaff?.id === u.id).length;
+                              return cnt > 0 ? <span className="bg-teal-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{cnt}</span> : null;
+                            })()}
+                          </button>
+                        )}
                         <button onClick={() => toggleActiveMutation.mutate(u.id)} disabled={toggleActiveMutation.isPending} className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${u.isActive !== false ? 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}>{u.isActive !== false ? 'Pasif Yap' : 'Aktif Yap'}</button>
-                        <button onClick={() => { setEditing(u); setEditForm({ name: u.name, email: u.email, phone: u.phone || '', role: u.role }); }} className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition">Düzenle</button>
-                        <button onClick={() => setDeleteConfirm(u)} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg font-medium transition">Sil</button>
                       </div></td>
                     </tr>
                   ))}

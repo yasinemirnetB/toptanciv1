@@ -116,7 +116,11 @@ export class OrdersService {
   async findByUser(userId: string) {
     return this.prisma.order.findMany({
       where: { userId },
-      include: { items: { include: { product: true } } },
+      include: {
+        user:     { select: { id: true, name: true, email: true, role: true } },
+        customer: { select: { id: true, name: true, email: true, phone: true } },
+        items:    { include: { product: { select: { name: true, unit: true } } } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }

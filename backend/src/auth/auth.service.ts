@@ -23,7 +23,7 @@ export class AuthService {
       throw new UnauthorizedException('Hesabınız pasif durumda. Yöneticinizle iletişime geçin.');
     }
     const payload = { sub: user.id, email: user.email, role: user.role };
-    return { accessToken: this.jwtService.sign(payload), user: { id: user.id, email: user.email, name: user.name, role: user.role } };
+    return { accessToken: this.jwtService.sign(payload), user: { id: user.id, email: user.email, name: user.name, role: user.role, permissions: (user as any).permissions ?? [] } };
   }
 
   async register(dto: RegisterDto) {
@@ -51,6 +51,6 @@ export class AuthService {
     });
 
     const payload = { sub: user.id, email: user.email, role: user.role };
-    return { accessToken: this.jwtService.sign(payload), user: { id: user.id, email: user.email, name: user.name, role: user.role } };
+    return { accessToken: this.jwtService.sign(payload), user: { id: user.id, email: user.email, name: user.name, role: user.role, permissions: (user as any).permissions ?? [] } };
   }
 }

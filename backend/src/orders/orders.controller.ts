@@ -27,6 +27,12 @@ export class OrdersController {
     return this.ordersService.findByUser(req.user.userId);
   }
 
+  @Get('staff')
+  @UseGuards(JwtAuthGuard)
+  staffOrders(@Request() req: any) {
+    return this.ordersService.findByUser(req.user.userId);
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')

@@ -3,7 +3,7 @@ import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { IsOptional, IsString, IsEmail, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsEmail, MinLength, IsArray } from 'class-validator';
 
 class CreateStaffDto {
   @IsString() name: string;
@@ -23,6 +23,9 @@ class UpdateUserDto {
   @IsOptional() @IsString() email?: string;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() role?: string;
+  @IsOptional() @IsString() segment?: string;
+  @IsOptional() @IsString() locationId?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) permissions?: string[];
 }
 
 class AssignStaffDto {

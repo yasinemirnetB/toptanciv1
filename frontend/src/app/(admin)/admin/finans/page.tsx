@@ -1,6 +1,8 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { usePermission } from '@/hooks/usePermission';
+import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -20,7 +22,10 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function FinansPage() {
+  usePermission('finans');
   const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'ADMIN';
   const [period, setPeriod] = useState<'7'|'30'|'90'|'custom'>('30');
   const [tab, setTab] = useState<'ozet'|'siparisler'|'cari'>('ozet');
   const [showFilters, setShowFilters] = useState(false);
@@ -33,9 +38,13 @@ export default function FinansPage() {
   const [paymentFilter, setPaymentFilter] = useState('ALL');
   const [statusFilter, setStatusFilter]   = useState('ALL');
 
-  const { data: orders = [] } = useQuery({ queryKey: ['admin-orders'], queryFn: () => api.get('/orders').then(r => r.data) });
+  // ADMIN tüm siparişleri, STAFF sadece kendi yaptıklarını görür
+  const { data: orders = [] } = useQuery({
+    queryKey: ['admin-orders', isAdmin ? 'all' : 'staff'],
+    queryFn: () => api.get(isAdmin ? '/orders' : '/orders/staff').then(r => r.data),
+  });
   const { data: accounts = [] } = useQuery({ queryKey: ['admin-accounts'], queryFn: () => api.get('/finance/accounts').then(r => r.data) });
-  const { data: users = [] } = useQuery({ queryKey: ['admin-users'], queryFn: () => api.get('/users').then(r => r.data) });
+  const { data: users = [] } = useQuery({ queryKey: ['admin-users'], queryFn: () => api.get('/users').then(r => r.data), enabled: isAdmin });
 
   const staffList = useMemo(() => users.filter((u: any) => u.role === 'ADMIN' || u.role === 'STAFF'), [users]);
   const customerList = useMemo(() => users.filter((u: any) => u.role === 'B2B' || u.role === 'B2C'), [users]);
@@ -348,7 +357,7 @@ export default function FinansPage() {
             ? <div className="p-12 text-center text-gray-400">Bu dönemde sipariş yok</div>
             : <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-gray-500">
-                  <tr>{['Tarih','Müşteri','Satışı Yapan','Tutar','Ödeme','Durum','Güncelle'].map((h) => <th key={h} className="px-5 py-3 text-left font-medium">{h}</th>)}</tr>
+                  <tr>{['Tarih','Müşteri','Satışı Yapan','Tutar','Ödeme','Durum', ...(isAdmin ? ['Güncelle'] : [])].map((h) => <th key={h} className="px-5 py-3 text-left font-medium">{h}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y">
                   {[...periodOrders].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((o: any) => (
@@ -378,17 +387,19 @@ export default function FinansPage() {
                           {STATUS_LABELS[o.status] ?? o.status}
                         </span>
                       </td>
-                      <td className="px-5 py-3">
-                        <select
-                          defaultValue={o.status}
-                          onChange={(e) => updateStatus.mutate({ id: o.id, status: e.target.value })}
-                          className="text-xs border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
-                        >
-                          {Object.entries(STATUS_LABELS).map(([v, l]) => (
-                            <option key={v} value={v}>{l}</option>
-                          ))}
-                        </select>
-                      </td>
+                      {isAdmin && (
+                        <td className="px-5 py-3">
+                          <select
+                            defaultValue={o.status}
+                            onChange={(e) => updateStatus.mutate({ id: o.id, status: e.target.value })}
+                            className="text-xs border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                          >
+                            {Object.entries(STATUS_LABELS).map(([v, l]) => (
+                              <option key={v} value={v}>{l}</option>
+                            ))}
+                          </select>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

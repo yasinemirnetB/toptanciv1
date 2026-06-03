@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
+import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -21,14 +23,18 @@ const PAYMENT_LABELS: Record<string, { label: string; icon: string; style: strin
 
 export default function AdminOrders() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'ADMIN';
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') ?? 'ALL');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
   const [selected, setSelected] = useState<any>(null);
 
+  // ADMIN tüm siparişleri, STAFF sadece kendi yaptıklarını görür
   const { data: orders, isLoading } = useQuery({
-    queryKey: ['admin-orders'],
-    queryFn: () => api.get('/orders').then((r) => r.data),
+    queryKey: ['admin-orders', isAdmin ? 'all' : 'staff'],
+    queryFn: () => api.get(isAdmin ? '/orders' : '/orders/staff').then((r) => r.data),
   });
 
   const updateStatus = useMutation({
@@ -96,15 +102,17 @@ export default function AdminOrders() {
                 </div>
               )}
             </div>
-            <div className="px-5 pb-5">
-              <select
-                value={selected.status}
-                onChange={(e) => { updateStatus.mutate({ id: selected.id, status: e.target.value }); setSelected((s: any) => ({ ...s, status: e.target.value })); }}
-                className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              >
-                {Object.entries(STATUS_LABELS).map(([v, { label }]) => <option key={v} value={v}>{label}</option>)}
-              </select>
-            </div>
+            {isAdmin && (
+              <div className="px-5 pb-5">
+                <select
+                  value={selected.status}
+                  onChange={(e) => { updateStatus.mutate({ id: selected.id, status: e.target.value }); setSelected((s: any) => ({ ...s, status: e.target.value })); }}
+                  className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  {Object.entries(STATUS_LABELS).map(([v, { label }]) => <option key={v} value={v}>{label}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -184,13 +192,19 @@ export default function AdminOrders() {
                     {new Date(order.createdAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                   </td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <select
-                      defaultValue={order.status}
-                      onChange={(e) => updateStatus.mutate({ id: order.id, status: e.target.value })}
-                      className="text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                    >
-                      {Object.entries(STATUS_LABELS).map(([v, { label }]) => <option key={v} value={v}>{label}</option>)}
-                    </select>
+                    {isAdmin ? (
+                      <select
+                        defaultValue={order.status}
+                        onChange={(e) => updateStatus.mutate({ id: order.id, status: e.target.value })}
+                        className="text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                      >
+                        {Object.entries(STATUS_LABELS).map(([v, { label }]) => <option key={v} value={v}>{label}</option>)}
+                      </select>
+                    ) : (
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_LABELS[order.status]?.style ?? 'bg-gray-100 text-gray-500'}`}>
+                        {STATUS_LABELS[order.status]?.label ?? order.status}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

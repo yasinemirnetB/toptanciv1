@@ -1,6 +1,7 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
@@ -19,6 +20,15 @@ export function ProductGrid() {
   const [categoryId, setCategoryId] = useState('');
   const [sort, setSort] = useState('default');
   const { items, addItem, updateQuantity } = useCartStore();
+  const searchRef = useRef<HTMLInputElement>(null);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('ara')) {
+      searchRef.current?.focus();
+      searchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [searchParams]);
 
   function getQty(id: string) {
     return items.find((i) => i.id === id)?.quantity ?? 0;
@@ -75,14 +85,14 @@ export function ProductGrid() {
 
   return (
     <div>
-      {/* Arama & Filtre */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        {/* Arama */}
+      {/* Arama & Filtre — sadece masaüstünde */}
+      <div className="hidden md:flex flex-row gap-3 mb-6">
         <div className="relative flex-1">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
           </svg>
           <input
+            ref={searchRef}
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -97,8 +107,6 @@ export function ProductGrid() {
             </button>
           )}
         </div>
-
-        {/* Kategori */}
         <select
           value={categoryId}
           onChange={(e) => setCategoryId(e.target.value)}
@@ -109,8 +117,6 @@ export function ProductGrid() {
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
-
-        {/* Sıralama */}
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value)}
@@ -120,8 +126,6 @@ export function ProductGrid() {
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
-
-        {/* Filtreleri Temizle */}
         {hasFilters && (
           <button
             onClick={() => { setSearch(''); setCategoryId(''); setSort('default'); }}
@@ -131,12 +135,8 @@ export function ProductGrid() {
           </button>
         )}
       </div>
-
-      {/* Sonuç sayısı */}
-      {!productsLoading && (
-        <p className="text-sm text-gray-400 mb-4">
-          {filtered.length} ürün {hasFilters && 'bulundu'}
-        </p>
+      {!productsLoading && hasFilters && (
+        <p className="hidden md:block text-sm text-gray-400 mb-4">{filtered.length} ürün bulundu</p>
       )}
 
       {/* Grid */}
