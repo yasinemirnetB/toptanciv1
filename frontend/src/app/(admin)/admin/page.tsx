@@ -104,10 +104,10 @@ export default function AdminDashboard() {
 
       {/* Büyük Stat Kartları — masaüstü */}
       <div className="hidden lg:grid lg:grid-cols-4 gap-4">
-        <StatCard label={isAdmin ? "Toplam Sipariş" : "Siparişlerim"} value={orders.length} icon={<CartIcon />} color="#14b8a6" link="/admin/siparisler" />
-        <StatCard label={isAdmin ? "Toplam Satış" : "Ciro"} value={formatCurrency(totalRevenue)} icon={<CardIcon />} color="#22c55e" link="/admin/finans" />
-        {hasPerm('musteri') && <StatCard label="Toplam Müşteri" value={totalCustomers} icon={<UserIcon />} color="#eab308" link="/admin/musteriler" />}
-        <StatCard label="Bekleyen Sipariş" value={pendingOrders} icon={<ClockIcon />} color="#ef4444" link="/admin/siparisler" />
+        {(isAdmin || hasPerm('toplam_siparis')) && <StatCard label={isAdmin ? "Toplam Sipariş" : "Siparişlerim"} value={orders.length} icon={<CartIcon />} color="#14b8a6" link="/admin/siparisler" />}
+        {(isAdmin || hasPerm('toplam_satis')) && <StatCard label={isAdmin ? "Toplam Satış" : "Ciro"} value={formatCurrency(totalRevenue)} icon={<CardIcon />} color="#22c55e" link="/admin/finans" />}
+        {(isAdmin || hasPerm('toplam_musteri')) && <StatCard label="Toplam Müşteri" value={totalCustomers} icon={<UserIcon />} color="#eab308" link="/admin/musteriler" />}
+        {(isAdmin || hasPerm('bekleyen_siparis')) && <StatCard label="Bekleyen Sipariş" value={pendingOrders} icon={<ClockIcon />} color="#ef4444" link="/admin/siparisler?status=PENDING" />}
       </div>
 
       {/* Hızlı Menü — masaüstü */}
@@ -128,10 +128,10 @@ export default function AdminDashboard() {
         {/* Stat özet şeridi */}
         <div className="grid grid-cols-2 gap-3 px-4 pb-3">
           {[
-            { label: isAdmin ? 'Toplam Sipariş' : 'Siparişlerim', value: orders.length,               color: '#14b8a6', href: '/admin/siparisler' },
-            { label: isAdmin ? 'Toplam Satış'   : 'Ciro',         value: formatCurrency(totalRevenue), color: '#22c55e', href: '/admin/finans' },
-            hasPerm('musteri') && { label: 'Müşteriler',          value: totalCustomers,               color: '#eab308', href: '/admin/musteriler' },
-            { label: 'Bekleyen',                                   value: pendingOrders,                color: '#ef4444', href: '/admin/siparisler' },
+            (isAdmin || hasPerm('toplam_siparis'))  && { label: isAdmin ? 'Toplam Sipariş' : 'Siparişlerim', value: orders.length,               color: '#14b8a6', href: '/admin/siparisler' },
+            (isAdmin || hasPerm('toplam_satis'))    && { label: isAdmin ? 'Toplam Satış'   : 'Ciro',         value: formatCurrency(totalRevenue), color: '#22c55e', href: '/admin/finans' },
+            (isAdmin || hasPerm('toplam_musteri'))  && { label: 'Müşteriler',                                 value: totalCustomers,               color: '#eab308', href: '/admin/musteriler' },
+            (isAdmin || hasPerm('bekleyen_siparis'))&& { label: 'Bekleyen',                                   value: pendingOrders,                color: '#ef4444', href: '/admin/siparisler?status=PENDING' },
           ].filter(Boolean).map((s: any) => (
             <Link key={s.label} href={s.href} className="rounded-xl p-3 text-white active:opacity-80 transition" style={{ backgroundColor: s.color }}>
               <p className="text-xl font-bold">{s.value}</p>

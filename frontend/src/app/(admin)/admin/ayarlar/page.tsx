@@ -26,16 +26,17 @@ const PAGE_LIST = [
 ];
 
 const PERMISSIONS_LIST = [
-  { key: 'finans',       label: 'Finans',        icon: '💰' },
-  { key: 'satis',        label: 'Satış',         icon: '⚡' },
-  { key: 'iptal',        label: 'Ürün İptali',   icon: '❌' },
-  { key: 'urun_ekle',   label: 'Ürün Ekle',     icon: '📦' },
-  { key: 'musteri',      label: 'Müşteriler',    icon: '👥' },
-  { key: 'rapor',        label: 'Rapor',         icon: '📊' },
-  { key: 'personel',     label: 'Personel',      icon: '🧑' },
-  { key: 'ayarlar',      label: 'Ayarlar',       icon: '⚙️' },
-  { key: 'urunler',      label: 'Ürünler/Stok',  icon: '🏪' },
-  { key: 'rota',         label: 'Rota',          icon: '🗺️' },
+  { key: 'toplam_siparis',  label: 'Toplam Sipariş',   icon: '🛒' },
+  { key: 'toplam_satis',    label: 'Toplam Satış',     icon: '💳' },
+  { key: 'toplam_musteri',  label: 'Toplam Müşteri',   icon: '🧑‍🤝‍🧑' },
+  { key: 'bekleyen_siparis',label: 'Bekleyen Sipariş', icon: '⏳' },
+  { key: 'satis',           label: 'Hızlı Satış',      icon: '⚡' },
+  { key: 'finans',          label: 'Finans',            icon: '💰' },
+  { key: 'urunler',         label: 'Ürünler/Stok',     icon: '🏪' },
+  { key: 'musteri',         label: 'Müşteriler',       icon: '👥' },
+  { key: 'personel',        label: 'Personel',         icon: '🧑' },
+  { key: 'rota',            label: 'Rotam',            icon: '🗺️' },
+  { key: 'ayarlar',         label: 'Ayarlar',          icon: '⚙️' },
 ];
 
 const EMPTY_USER = {
@@ -44,7 +45,7 @@ const EMPTY_USER = {
   photoUrl: '', idFrontUrl: '', idBackUrl: '',
   idManual: { tcNo: '', birthDate: '', issueDate: '' },
   useManualId: false,
-  permissions: [] as string[],
+  permissions: PERMISSIONS_LIST.map((p) => p.key),
 };
 
 export default function AdminSettings() {
@@ -1028,7 +1029,7 @@ export default function AdminSettings() {
                             role: u.role, password: '',
                             ...(profile ?? {}),
                             idManual: profile?.idManual ?? EMPTY_USER.idManual,
-                            permissions: profile?.permissions ?? [],
+                            permissions: profile?.permissions?.length ? profile.permissions : PERMISSIONS_LIST.map((p) => p.key),
                             useManualId: !!profile?.idManual,
                           });
                           setUserTab(0);

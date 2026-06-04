@@ -7,8 +7,7 @@ import { useMounted } from '@/hooks/useMounted';
 
 // İzin key'i → hangi route'a erişim verir
 const PERMISSION_ROUTES: Record<string, string[]> = {
-  rapor:     ['/admin'],
-  satis:     ['/admin/hizli-satis'],
+  satis:     ['/admin/hizli-satis', '/admin/siparisler'],
   finans:    ['/admin/finans'],
   urun_ekle: ['/admin/urunler'],
   urunler:   ['/admin/urunler'],
@@ -16,17 +15,20 @@ const PERMISSION_ROUTES: Record<string, string[]> = {
   personel:  ['/admin/personel'],
   ayarlar:   ['/admin/ayarlar'],
   rota:      ['/admin/rotam', '/admin/rotalar'],
+  toplam_siparis:   ['/admin/siparisler'],
+  bekleyen_siparis: ['/admin/siparisler'],
 };
 
 // Tüm nav item tanımları — her item'a gerekli izin key'i eklendi
 const ALL_NAV_ITEMS = [
-  { href: '/admin',            label: 'Gösterge Paneli',  icon: '📊', permission: 'rapor' },
   { href: '/admin/hizli-satis',label: 'Hızlı Satış',      icon: '⚡', permission: 'satis' },
   { href: '/admin/finans',     label: 'Finans',            icon: '💰', permission: 'finans' },
-  { href: '/admin/urunler',    label: 'Ürünler / Stok',   icon: '☕', permission: 'urun_ekle' },
+  { href: '/admin/urunler',    label: 'Ürünler / Stok',   icon: '☕', permission: 'urunler' },
   { href: '/admin/musteriler', label: 'Müşteriler',        icon: '👥', permission: 'musteri' },
   { href: '/admin/personel',   label: 'Personel',          icon: '🧑', permission: 'personel' },
   { href: '/admin/ayarlar',    label: 'Ayarlar',           icon: '⚙️', permission: 'ayarlar' },
+  { href: '/admin/rotam',      label: 'Rotam',             icon: '🗺️', permission: 'rota' },
+  { href: '/admin/siparisler', label: 'Siparişler',        icon: '🛒', permission: 'satis' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
