@@ -50,7 +50,7 @@ const EMPTY_USER = {
 
 export default function AdminSettings() {
   usePermission('ayarlar');
-  const { settings, update, reset } = useSettingsStore();
+  const { settings, update, reset, syncToServer } = useSettingsStore();
   const { user, setAuth, token, logout } = useAuthStore();
   const router = useRouter();
   const logoRef  = useRef<HTMLInputElement>(null);
@@ -121,6 +121,7 @@ export default function AdminSettings() {
 
   function savePageContent() {
     update({ pages, sliders, homeSections, contactInfo, blogPosts, socialLinks });
+    syncToServer();
     toast.success('Sayfa içerikleri kaydedildi');
   }
 
@@ -276,12 +277,13 @@ export default function AdminSettings() {
     if (!file) return;
     if (file.size > 500_000) { toast.error('500 KB\'dan küçük olmalı'); return; }
     const reader = new FileReader();
-    reader.onload = () => { update({ [field]: reader.result as string }); toast.success('Güncellendi'); };
+    reader.onload = () => { update({ [field]: reader.result as string }); syncToServer(); toast.success('Güncellendi'); };
     reader.readAsDataURL(file);
   }
 
   function saveAll() {
     update({ siteName, siteSlogan, primaryColor, accentColor, bgColor, textColor, primaryDark: primaryColor, footerText, socialLinks, language, timezone, dateFormat, currency, pages });
+    syncToServer();
     toast.success('Değişiklikler kaydedildi');
   }
 
@@ -564,6 +566,7 @@ export default function AdminSettings() {
                         const newPages = { ...pages, [page.key]: newVal };
                         setPages(newPages);
                         update({ pages: newPages });
+                        syncToServer();
                         toast.success(`${page.label} ${newVal ? 'aktif' : 'pasif'} edildi`);
                       }}
                         className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 flex-shrink-0"
@@ -1242,7 +1245,7 @@ export default function AdminSettings() {
                 </div>
 
                 {(pm.bankAccounts.length > 0 || pm.iyzico || pm.paytr) && (
-                  <button onClick={() => { update({ paymentMethods: pm }); toast.success('Ödeme yöntemleri kaydedildi'); }}
+                  <button onClick={() => { update({ paymentMethods: pm }); syncToServer(); toast.success('Ödeme yöntemleri kaydedildi'); }}
                     className="mt-4 w-full bg-blue-700 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-800 transition flex items-center justify-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
                     Kaydet
@@ -1251,7 +1254,7 @@ export default function AdminSettings() {
               </Card>
 
               <div className="flex justify-end">
-                <button onClick={() => { update({ paymentMethods: pm }); toast.success('Ödeme yöntemleri kaydedildi'); }}
+                <button onClick={() => { update({ paymentMethods: pm }); syncToServer(); toast.success('Ödeme yöntemleri kaydedildi'); }}
                   className="bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-800 transition flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
                   Tüm Değişiklikleri Kaydet
@@ -1314,7 +1317,7 @@ export default function AdminSettings() {
                     </div>
                   </div>
 
-                  <button onClick={() => { update({ whatsapp: wa }); toast.success('WhatsApp ayarları kaydedildi'); }}
+                  <button onClick={() => { update({ whatsapp: wa }); syncToServer(); toast.success('WhatsApp ayarları kaydedildi'); }}
                     className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition hover:opacity-90 flex items-center justify-center gap-2"
                     style={{ backgroundColor: '#25d366' }}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
@@ -1470,7 +1473,7 @@ export default function AdminSettings() {
                       {seo.metaDescription || 'Sayfa açıklaması burada görünecek...'}
                     </p>
                   </div>
-                  <button onClick={() => { update({ seo }); toast.success('SEO ayarları kaydedildi'); }}
+                  <button onClick={() => { update({ seo }); syncToServer(); toast.success('SEO ayarları kaydedildi'); }}
                     className="mt-4 w-full bg-blue-700 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-800 transition flex items-center justify-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
                     SEO Ayarlarını Kaydet

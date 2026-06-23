@@ -161,8 +161,6 @@ const DEFAULTS: SiteSettings = {
   },
 };
 
-let _syncTimer: ReturnType<typeof setTimeout> | null = null;
-
 export const useSettingsStore = create<SettingsStore>()(
   persist(
     (set, get) => ({
@@ -170,10 +168,6 @@ export const useSettingsStore = create<SettingsStore>()(
 
       update: (partial) => {
         set((s) => ({ settings: { ...s.settings, ...partial } }));
-        if (typeof window !== 'undefined') {
-          if (_syncTimer) clearTimeout(_syncTimer);
-          _syncTimer = setTimeout(() => { get().syncToServer(); }, 1500);
-        }
       },
 
       reset: () => set({ settings: DEFAULTS }),

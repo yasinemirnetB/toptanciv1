@@ -1,6 +1,5 @@
 'use client';
 import { useAuthStore } from '@/store/auth.store';
-import { useSettingsStore } from '@/store/settings.store';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -34,14 +33,11 @@ const ALL_NAV_ITEMS = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuthStore();
-  const loadFromServer = useSettingsStore((s) => s.loadFromServer);
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const mounted = useMounted();
-
-  useEffect(() => { loadFromServer(); }, []);
 
   const isAdmin = user?.role === 'ADMIN';
   const isStaff = user?.role === 'STAFF';
