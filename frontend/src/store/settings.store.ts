@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import api from '@/lib/api';
 
 export interface SliderItem {
   id: string;
@@ -112,6 +113,8 @@ interface SettingsStore {
   settings: SiteSettings;
   update: (partial: Partial<SiteSettings>) => void;
   reset: () => void;
+  syncToServer: () => Promise<void>;
+  loadFromServer: () => Promise<void>;
 }
 
 const DEFAULTS: SiteSettings = {
@@ -158,12 +161,41 @@ const DEFAULTS: SiteSettings = {
   },
 };
 
+let _syncTimer: ReturnType<typeof setTimeout> | null = null;
+
 export const useSettingsStore = create<SettingsStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       settings: DEFAULTS,
-      update: (partial) => set((s) => ({ settings: { ...s.settings, ...partial } })),
+
+      update: (partial) => {
+        set((s) => ({ settings: { ...s.settings, ...partial } }));
+        if (typeof window !== 'undefined') {
+          if (_syncTimer) clearTimeout(_syncTimer);
+          _syncTimer = setTimeout(() => { get().syncToServer(); }, 1500);
+        }
+      },
+
       reset: () => set({ settings: DEFAULTS }),
+
+      syncToServer: async () => {
+        if (typeof window === 'undefined') return;
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        try {
+          await api.put('/settings', get().settings);
+        } catch {}
+      },
+
+      loadFromServer: async () => {
+        if (typeof window === 'undefined') return;
+        try {
+          const { data } = await api.get('/settings');
+          if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+            set((s) => ({ settings: { ...s.settings, ...data } }));
+          }
+        } catch {}
+      },
     }),
     { name: 'kafe-settings' }
   )

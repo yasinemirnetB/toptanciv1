@@ -1,5 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
+import { useEffect } from 'react';
 import { useSettingsStore } from '@/store/settings.store';
 import { MobileBottomNav } from '@/components/shop/MobileBottomNav';
 
@@ -10,6 +11,9 @@ const ShopHeader = dynamic(
 
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
   const wa = useSettingsStore((s) => s.settings.whatsapp);
+  const loadFromServer = useSettingsStore((s) => s.loadFromServer);
+
+  useEffect(() => { loadFromServer(); }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">

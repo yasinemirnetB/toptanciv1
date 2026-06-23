@@ -215,3 +215,9 @@ model VisitLog {
   note       String?
   createdAt  DateTime @default(now())
 }
+
+model SiteSettings {
+  id        Int      @id
+  data      Json
+  updatedAt DateTime @updatedAt
+}

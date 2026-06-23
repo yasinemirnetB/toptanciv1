@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCartStore } from '@/store/cart.store';
 import { useAuthStore } from '@/store/auth.store';
+import { useSettingsStore } from '@/store/settings.store';
 import { useEffect, useState } from 'react';
 import { MobileSearch } from './MobileSearch';
 
@@ -10,6 +11,7 @@ export function MobileBottomNav() {
   const pathname = usePathname();
   const itemCount = useCartStore((s) => s.itemCount());
   const user = useAuthStore((s) => s.user);
+  const pages = useSettingsStore((s) => s.settings.pages);
   const [mounted, setMounted] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -26,12 +28,14 @@ export function MobileBottomNav() {
         <div className="flex items-end justify-around h-16 px-2">
 
           {/* Ana Sayfa */}
-          <Link href="/" className={cls('/')}>
-            <svg className="w-6 h-6" fill={active('/') ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 9.75L12 3l9 6.75V21a.75.75 0 01-.75.75H15v-6h-6v6H3.75A.75.75 0 013 21V9.75z" />
-            </svg>
-            <span className="text-[10px] font-medium leading-none">Ana Sayfa</span>
-          </Link>
+          {pages?.anasayfa !== false && (
+            <Link href="/" className={cls('/')}>
+              <svg className="w-6 h-6" fill={active('/') ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 9.75L12 3l9 6.75V21a.75.75 0 01-.75.75H15v-6h-6v6H3.75A.75.75 0 013 21V9.75z" />
+              </svg>
+              <span className="text-[10px] font-medium leading-none">Ana Sayfa</span>
+            </Link>
+          )}
 
           {/* Arama */}
           <button
@@ -60,12 +64,14 @@ export function MobileBottomNav() {
           </Link>
 
           {/* İletişim */}
-          <Link href="/iletisim" className={cls('/iletisim')}>
-            <svg className="w-6 h-6" fill={active('/iletisim') ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-            <span className="text-[10px] font-medium leading-none">İletişim</span>
-          </Link>
+          {pages?.iletisim !== false && (
+            <Link href="/iletisim" className={cls('/iletisim')}>
+              <svg className="w-6 h-6" fill={active('/iletisim') ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+              <span className="text-[10px] font-medium leading-none">İletişim</span>
+            </Link>
+          )}
 
           {/* Hesabım */}
           <Link
